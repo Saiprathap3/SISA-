@@ -1,45 +1,30 @@
-from typing import List, Optional
-from pydantic import Field, validator
-from pydantic_settings import BaseSettings
-from pathlib import Path
-
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    # Core
-    ANTHROPIC_API_KEY: Optional[str] = None
-    CLAUDE_MODEL: str = "claude-sonnet-4-6"
-    APP_VERSION: str = "1.1.0"
-    
-    # Security
-    API_BEARER_TOKEN: Optional[str] = None
-    ALLOWED_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
-    RATE_LIMIT: str = "30/minute"
-    MAX_FILE_SIZE_MB: int = 10
-    MAX_TEXT_CHARS: int = 50000
+    anthropic_api_key: str = ""
+    claude_model: str = "claude-sonnet-4-6"
+    frontend_origin: str = "http://localhost:5173"
+    allowed_origins: str = "http://localhost:3000,http://localhost:5173"
+    api_bearer_token: str = "sisa-hackathon-secure-2025"
+    max_file_size_mb: int = 10
+    app_version: str = "1.0.0"
 
-    # Detection
-    ENABLE_ML: bool = True
-    MIN_ML_SAMPLES: int = 50
-
-    class Config:
-        env_file = str(Path(__file__).resolve().parents[2] / ".env")
-        env_file_encoding = "utf-8"
-
-    @validator("ANTHROPIC_API_KEY")
-    def validate_api_key(cls, v):
-        if not v or v.strip() == "":
-            raise ValueError("ANTHROPIC_API_KEY is missing or empty")
-        return v
-
-    @validator("CLAUDE_MODEL")
-    def validate_model(cls, v):
-        if not v or v.strip() == "":
-            raise ValueError("CLAUDE_MODEL is not a valid string")
-        return v
-
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"   # NEVER "forbid"
+    )
 
 settings = Settings()
 
+allowed_origins_list = [
+    o.strip() for o in settings.allowed_origins.split(",")
+]
 
-def allowed_origins_list() -> List[str]:
-    return [o.strip() for o in settings.ALLOWED_ORIGINS.split(',')]
+# Startup validation
+if not settings.anthropic_api_key:
+    print("WARNING: ANTHROPIC_API_KEY not set — AI insights will use fallback")
+else:
+    print(f"✅ API Key loaded: {settings.anthropic_api_key[:12]}...")
+    print(f"✅ Model: {settings.claude_model}")
+    print(f"✅ CORS: {allowed_origins_list}")

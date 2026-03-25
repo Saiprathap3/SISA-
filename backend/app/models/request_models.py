@@ -6,9 +6,9 @@ InputType = Literal["text", "file", "sql", "log", "chat"]
 
 
 class AnalyzeOptions(BaseModel):
-    mask_output: bool = Field(True, description="Mask sensitive values in output")
-    use_ai: bool = Field(True, description="Whether to call AI analysis")
-    block_on_critical: bool = Field(True, description="Block when critical findings are present")
+    mask: bool = Field(True, description="Mask sensitive values in output")
+    log_analysis: bool = Field(True, description="Whether to call AI analysis")
+    block_high_risk: bool = Field(True, description="Block when critical findings are present")
 
 
 class AnalyzeRequest(BaseModel):

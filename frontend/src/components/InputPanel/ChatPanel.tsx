@@ -20,18 +20,18 @@ export default function ChatPanel({ onSend }: { onSend?: (text:string)=>Promise<
   useEffect(()=>{ if(boxRef.current) boxRef.current.scrollTop = boxRef.current.scrollHeight }, [messages])
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:8, height:'100%' }}>
-      <div ref={boxRef} style={{ flex:1, overflowY:'auto', padding:12, background:'#081018', borderRadius:8 }}>
+    <div className="chat-box">
+      <div ref={boxRef} className="chat-messages">
         {messages.length===0 && <div className="muted">No messages yet. Start the conversation.</div>}
         {messages.map((m,i)=>(
-          <div key={i} style={{ marginBottom:8 }}>
-            <div style={{ fontSize:12, color:'#9aa6b2' }}>{m.role === 'user' ? 'User' : 'AI'}</div>
-            <div style={{ background: m.role==='user' ? '#0b6cff' : '#0b1220', color: m.role==='user' ? '#081018' : '#e6eef8', padding:8, borderRadius:6, display:'inline-block', marginTop:4 }}>{m.text}</div>
+          <div key={i} className="mb-8">
+            <div className="f-12 muted">{m.role === 'user' ? 'User' : 'AI'}</div>
+            <div className={`chat-msg-bubble ${m.role==='user' ? 'chat-msg-user' : 'chat-msg-ai'}`}>{m.text}</div>
           </div>
         ))}
       </div>
-      <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-        <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Type a message..." style={{ flex:1, padding:8, borderRadius:6, background:'#0b1014', color:'#e6eef8', border:'1px solid rgba(255,255,255,0.02)' }} />
+      <div className="flex-gap-8 flex-center">
+        <input value={input} onChange={e=>setInput(e.target.value)} placeholder="Type a message..." className="flex-1 p-12 br-6 bg-dark color-white border-subtle" />
         <button className="accent-btn" onClick={send}>Send</button>
       </div>
     </div>

@@ -3,10 +3,15 @@ from datetime import datetime, timedelta
 
 # Patterns for failed login
 FAILED_PATTERNS = [
+    "failed login",
+    "login failed",
+    "failed attempt",
+    "authentication failed",
+    "invalid password",
+    "FAILED login",
     "Failed password",
     "authentication failure",
-    "Invalid user",
-    "FAILED LOGIN"
+    "Invalid user"
 ]
 
 # Patterns for privilege escalation
@@ -17,49 +22,58 @@ PRIV_ESC_PATTERNS = [
 ]
 
 def detect_brute_force(parsed_lines: List[Dict[str, Any]], threshold=5, window_seconds=30) -> List[Dict[str, Any]]:
-    """Track failed login attempts per IP within a window."""
+    """Track failed login attempts per IP within a window, or count sequentially if no IP available."""
     failures_by_ip: Dict[str, List[datetime]] = {}
     anomalies = []
+    failed_count = 0
     
-    for entry in parsed_lines:
+    for i, entry in enumerate(parsed_lines):
         content = entry.get("content", "").lower()
-        ip = entry.get("extra", {}).get("ip") or entry.get("extra", {}).get("host") # fallback host
+        ip = entry.get("extra", {}).get("ip") or entry.get("extra", {}).get("host")
         
-        if not ip:
-            continue
-            
         is_failure = any(p.lower() in content for p in FAILED_PATTERNS)
         
         if is_failure:
-            # We don't have accurate timestamps in all logs, using line order as proxy if needed
-            # but user requested window_seconds, which requires normalized timestamp
-            ts_str = entry.get("extra", {}).get("timestamp")
-            try:
-                # If timestamp normalize failed in parser, it's a string. 
-                # Assuming ISO 8601 if normalized.
-                ts = datetime.fromisoformat(ts_str) if ts_str else datetime.now()
-            except Exception:
-                ts = datetime.now()
+            if ip:
+                # Track by IP if available
+                ts_str = entry.get("extra", {}).get("timestamp")
+                try:
+                    ts = datetime.fromisoformat(ts_str) if ts_str else datetime.now()
+                except Exception:
+                    ts = datetime.now()
+                    
+                if ip not in failures_by_ip:
+                    failures_by_ip[ip] = []
+                failures_by_ip[ip].append(ts)
                 
-            if ip not in failures_by_ip:
-                failures_by_ip[ip] = []
-            failures_by_ip[ip].append(ts)
-            
-            # Check window
-            window_start = ts - timedelta(seconds=window_seconds)
-            recent_failures = [f for f in failures_by_ip[ip] if f >= window_start]
-            failures_by_ip[ip] = recent_failures # prune old ones
-            
-            if len(recent_failures) >= threshold:
-                anomalies.append({
-                    "ip": ip,
-                    "attempt_count": len(recent_failures),
-                    "time_window": f"{window_seconds}s",
-                    "risk": "critical",
-                    "type": "brute_force_attack"
-                })
-                # Once flagged, clear for that IP to avoid double flagging every line
-                failures_by_ip[ip] = []
+                # Check window
+                window_start = ts - timedelta(seconds=window_seconds)
+                recent_failures = [f for f in failures_by_ip[ip] if f >= window_start]
+                failures_by_ip[ip] = recent_failures # prune old ones
+                
+                if len(recent_failures) >= threshold:
+                    anomalies.append({
+                        "ip": ip,
+                        "attempt_count": len(recent_failures),
+                        "time_window": f"{window_seconds}s",
+                        "risk": "critical",
+                        "type": "brute_force_attack"
+                    })
+                    # Once flagged, clear for that IP to avoid double flagging every line
+                    failures_by_ip[ip] = []
+            else:
+                # No IP available - count sequentially
+                failed_count += 1
+                if failed_count >= threshold:
+                    anomalies.append({
+                        "attempt_count": failed_count,
+                        "risk": "critical",
+                        "type": "brute_force_attack",
+                        "line": i + 1,
+                        "message": f"{failed_count} failed login attempts detected"
+                    })
+                    # Reset after detection
+                    failed_count = 0
                 
     return anomalies
 

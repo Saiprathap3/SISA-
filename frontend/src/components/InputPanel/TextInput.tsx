@@ -16,10 +16,10 @@ export default function TextInput({ onSubmit, loading, placeholder = 'Enter text
 
   return (
     <div>
-      <textarea ref={ref} value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} style={{ width: '100%', minHeight: 300, background: '#141920', color: '#e6eef8', fontFamily: 'IBM Plex Mono, monospace', padding: 12, borderRadius: 6, border: '1px solid #1e2736' }} />
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-        <div style={{ color: '#9aa6b2' }}>{value.length} chars</div>
-        <button onClick={() => onSubmit(value)} disabled={loading} style={{ background: '#0b6cff', color: 'white', padding: '8px 16px', borderRadius: 6 }}>{loading ? 'Analyzing...' : 'Analyze'}</button>
+      <textarea ref={ref} value={value} onChange={e => setValue(e.target.value)} placeholder={placeholder} className="text-editor-main" />
+      <div className="flex-between mt-8">
+        <div className="muted">{value.length} chars</div>
+        <button onClick={() => onSubmit(value)} disabled={loading} className="accent-btn">{loading ? 'Analyzing...' : 'Analyze'}</button>
       </div>
     </div>
   )

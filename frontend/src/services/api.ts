@@ -19,7 +19,7 @@ async function request<T>(path: string, init: RequestInit = {}, timeout = 30000)
 }
 
 export async function analyzeText(content: string, inputType: string, options: AnalyzeOptions): Promise<AnalyzeResponse> {
-  return request<AnalyzeResponse>('/api/analyze', {
+  return request<AnalyzeResponse>('/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ input_type: inputType, content, options }),
@@ -30,7 +30,7 @@ export async function analyzeFile(file: File, options: AnalyzeOptions): Promise<
   const fd = new FormData()
   fd.append('file', file)
   fd.append('options', JSON.stringify(options))
-  return request<AnalyzeResponse>('/api/analyze/file', { method: 'POST', body: fd })
+  return request<AnalyzeResponse>('/analyze', { method: 'POST', body: fd })
 }
 
 export async function checkHealth(): Promise<{ status: string; version: string }> {

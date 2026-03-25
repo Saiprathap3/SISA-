@@ -1,43 +1,72 @@
 import React from 'react'
 
-export default function InsightsPanel({ insights, anomalies, aiUsed, breakdown }: { insights: string[]; anomalies: string[]; aiUsed: boolean; breakdown?: any }) {
-  const bd = breakdown || { regex_findings: 0, statistical_findings: 0, ml_findings: 0, ai_findings: 0 }
-  const total = Math.max(1, bd.regex_findings + bd.statistical_findings + bd.ml_findings + bd.ai_findings)
+export default function InsightsPanel({ insights, anomalies, breakdown }: { insights: string[]; anomalies?: string[]; breakdown?: any }) {
+  const bd = breakdown ?? { regex: 0, statistical: 0, ml: 0, ai: 0 };
+  const total = Math.max(1, (bd.regex ?? 0) + (bd.statistical ?? 0) + (bd.ml ?? 0) + (bd.ai ?? 0));
   
-  function Bar({ label, count, color }: any) {
-    const bars = "██████████"
-    const pct = Math.round((count / total) * 10)
-    return (
-      <div className="bar-row">
-        <div className="bar-label">{label}</div>
-        <div className="bar-viz" style={{ '--bar-color': color } as React.CSSProperties}>{bars.slice(0, pct).padEnd(10, '░')}</div>
-        <div className="muted">{count} findings</div>
-      </div>
-    )
-  }
+  // Determine if AI insights are from Claude (ai count > 0) or fallback
+  const isClaudeInsights = (bd.ai ?? 0) > 0;
+
+  // Color determination based on count
+  const getBarColor = (method: string, count: number): string => {
+    if (count === 0) return '#666666'; // dim gray for 0 findings
+    
+    const colorMap: Record<string, { medium: string; bright: string }> = {
+      regex: { medium: '#3b82f6', bright: '#0b6cff' },
+      statistical: { medium: '#8b5cf6', bright: '#a78bfa' },
+      ml: { medium: '#ec4899', bright: '#f472b6' },
+      ai: { medium: '#14b8a6', bright: '#2dd4bf' }
+    };
+    
+    const colors = colorMap[method] || colorMap.regex;
+    return count >= 3 ? colors.bright : colors.medium;
+  };
+
+  const methods = [
+    { key: 'regex', label: 'Regex', color: '#3b82f6' },
+    { key: 'statistical', label: 'Statistical', color: '#8b5cf6' },
+    { key: 'ml', label: 'ML', color: '#ec4899' },
+    { key: 'ai', label: 'AI', color: '#14b8a6' }
+  ];
 
   return (
     <div className="insights-panel panel">
       <div className="insights-title">DETECTION BREAKDOWN</div>
       <div className="insights-grid">
-        <Bar label="Regex" count={bd.regex_findings} color="#58a6ff" />
-        <Bar label="Statistical" count={bd.statistical_findings} color="#bc8cff" />
-        <Bar label="ML" count={bd.ml_findings} color="#7ee787" />
-        <Bar label="AI" count={bd.ai_findings} color="#ff7b72" />
+        {methods.map(method => {
+          const count = bd[method.key] ?? 0;
+          const barColor = getBarColor(method.key, count);
+          const filledDots = count > 0 ? Math.max(1, Math.round((count / total) * 20)) : 0;
+          const totalDots = 20;
+          return (
+            <div key={method.key} className="bar-row">
+              <div className="bar-label">{method.label}</div>
+              <div className="bar-viz" style={{ color: barColor }}>
+                {'█'.repeat(filledDots)}{'░'.repeat(Math.max(0, totalDots - filledDots))}
+              </div>
+              <div>{count} findings</div>
+            </div>
+          );
+        })}
       </div>
 
-      <div style={{ marginTop: 16 }}>
-        <div className="insights-title">AI INSIGHTS {aiUsed ? '✨' : ''}</div>
+      <div className="mt-16">
+        <div className="insights-title">AI INSIGHTS</div>
         {insights && insights.length > 0 ? (
-          insights.map((t, i) => <div key={i} className="insight-item">💡 {t}</div>)
+          <>
+            <div style={{ marginBottom: '12px', fontSize: '12px', color: '#666' }}>
+              {isClaudeInsights ? '🤖 Powered by Claude' : '📋 Rule-based insights'}
+            </div>
+            {insights.map((t, i) => <div key={i} className="insight-item">💡 {t}</div>)}
+          </>
         ) : (
-          <div style={{ color: '#9aa6b2', fontSize: 13 }}>No AI insights available</div>
+          <div className="muted f-13">No insights available</div>
         )}
       </div>
 
       {anomalies && anomalies.length > 0 && (
-        <div style={{ marginTop: 12 }}>
-          <div className="insights-title" style={{ color: '#f43f5e' }}>ANOMALIES</div>
+        <div className="mt-16">
+          <div className="insights-title alert-text">ANOMALIES</div>
           {anomalies.map((a, i) => <div key={i} className="anomaly-item">⚠️ {a}</div>)}
         </div>
       )}

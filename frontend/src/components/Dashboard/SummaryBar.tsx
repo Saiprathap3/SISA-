@@ -9,13 +9,13 @@ function Donut({ score }: { score: number }) {
   const offset = circ * (1 - pct / 100)
   
   return (
-    <div style={{ position: 'relative', width: 70, height: 70, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div className="donut-container" style={{ '--donut-color': color } as React.CSSProperties}>
       <svg width="70" height="70" viewBox="0 0 80 80">
         <circle cx="40" cy="40" r={radius} stroke="#1e2736" strokeWidth="8" fill="none" />
         <circle cx="40" cy="40" r={radius} stroke={color} strokeWidth="8" fill="none" 
           strokeDasharray={`${circ}`} strokeDashoffset={offset} strokeLinecap="round" transform="rotate(-90 40 40)" />
       </svg>
-      <div style={{ position: 'absolute', fontWeight: 700, fontSize: 12, color: color }}>{pct}%</div>
+      <div className="donut-text" style={{ color: 'var(--donut-color)' }}>{pct}%</div>
     </div>
   )
 }
@@ -27,7 +27,8 @@ export default function SummaryBar({
   findingsCount, 
   duration, 
   totalLines, 
-  requestId 
+  requestId,
+  summary
 }: { 
   level: RiskLevel; 
   score: number; 
@@ -35,7 +36,8 @@ export default function SummaryBar({
   findingsCount: number; 
   duration?: number; 
   totalLines?: number; 
-  requestId?: string; 
+  requestId?: string;
+  summary?: string;
 }) {
   return (
     <div className="summary-grid">
@@ -48,14 +50,19 @@ export default function SummaryBar({
         <div className="stat-label">Action</div>
         <ActionBadge action={action} />
       </div>
-      <div style={{ textAlign: 'right' }} className="stat-box">
-        <div style={{ fontSize: 13, fontWeight: 700 }}>{findingsCount} findings</div>
-        <div className="muted" style={{ fontSize: 10 }}>
+      <div className="stat-box text-right">
+        <div className="f-13 fw-700">{findingsCount} findings</div>
+        <div className="muted f-10">
           {duration ? `${Math.round(duration)}ms` : ''} 
           {totalLines ? ` • ${totalLines} lines` : ''}
         </div>
-        <div className="muted" style={{ fontSize: 10 }}>{requestId?.slice(0, 8)}</div>
+        <div className="muted f-10">{requestId?.slice(0, 8)}</div>
       </div>
+      {summary && (
+        <div style={{ gridColumn: '1 / -1', paddingTop: '12px', borderTop: '1px solid #444', marginTop: '12px', fontSize: '13px' }}>
+          {summary}
+        </div>
+      )}
     </div>
   )
 }

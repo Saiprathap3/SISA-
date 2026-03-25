@@ -1,151 +1,80 @@
-from dataclasses import dataclass
-from typing import List, Dict
+import re
+from typing import List, Dict, Tuple
+
+MASK_RULES = {
+    "email": lambda v: re.sub(
+        r'(\w{1,2})\w*@(\w{1,2})\w*\.',
+        lambda m: m.group(1) + '***@' + m.group(2) + '***.',
+        v
+    ),
+    "password": lambda v: re.sub(
+        r'(?i)(password|passwd|pwd|pass)\s*(?:is\s+|=\s*|:\s*)\S+',
+        lambda m: m.group().split(m.group(1))[-1].split()[-1] and 
+                  m.group(1) + '=[REDACTED]',
+        v
+    ),
+    "api_key": lambda v: re.sub(
+        r'(sk-[A-Za-z0-9]{4})[A-Za-z0-9]+([A-Za-z0-9]{4})',
+        r'\1***\2', v
+    ),
+    "bearer_token": lambda v: re.sub(
+        r'(Bearer\s+[A-Za-z0-9]{4})[A-Za-z0-9\-._~+/]+=*',
+        r'\1[TOKEN REDACTED]', v, flags=re.IGNORECASE
+    ),
+    "jwt_token": lambda v: re.sub(
+        r'(eyJ[A-Za-z0-9\-_]{4})[A-Za-z0-9\-_.]+',
+        r'\1[JWT REDACTED]', v
+    ),
+}
+
+SIMPLE_MASK = "[MASKED]"
+BLOCK_LEVELS = {"critical", "high"}
 
 
-@dataclass
-class PolicyConfig:
-    block_on_critical: bool = True
-    mask_high_risk: bool = True
-    allow_low_risk: bool = True
-    alert_on_brute_force: bool = True
+def mask_finding_value(value: str, finding_type: str) -> str:
+    """Apply type-specific masking to a sensitive value"""
+    masker = MASK_RULES.get(finding_type)
+    if masker:
+        try:
+            return masker(value)
+        except Exception:
+            pass
+    return SIMPLE_MASK
 
 
-@dataclass
-class PolicyDecision:
-    action: str
-    reasons: List[str]
-    alerts: List[str]
-
-
-def evaluate(findings: List[Dict], anomalies: List[str], options: Dict) -> PolicyDecision:
-    """Evaluate policy against findings and anomalies and return a decision."""
-    cfg = PolicyConfig(
-        block_on_critical=options.get("block_on_critical", True),
-        mask_high_risk=options.get("mask_output", True),
-        allow_low_risk=True,
-        alert_on_brute_force=True,
-    )
-    reasons: List[str] = []
-    alerts: List[str] = []
-
-    has_critical = any(f.get("risk") == "critical" for f in findings)
-    has_high_medium = any(f.get("risk") in ("high", "medium") for f in findings)
-
-    if has_critical and cfg.block_on_critical:
-        reasons.append("critical findings present and block_on_critical")
-        action = "blocked"
-    elif has_high_medium and cfg.mask_high_risk:
-        reasons.append("masking high/medium risk findings")
-        action = "masked"
-    elif not findings:
-        action = "allowed"
-    else:
-        action = "allowed"
-
-    if anomalies and cfg.alert_on_brute_force:
-        alerts.extend(anomalies)
-
-    return PolicyDecision(action=action, reasons=reasons, alerts=alerts)
-from dataclasses import dataclass
-from typing import List, Dict
-
-
-@dataclass
-class PolicyConfig:
-    block_on_critical: bool = True
-    mask_high_risk: bool = True
-    allow_low_risk: bool = True
-    alert_on_brute_force: bool = True
-
-
-@dataclass
-class PolicyDecision:
-    action: str
-    reasons: List[str]
-    alerts: List[str]
-
-
-def evaluate(findings: List[Dict], anomalies: List[str], options: Dict) -> PolicyDecision:
-    cfg = PolicyConfig(
-        block_on_critical=options.get("block_on_critical", True),
-        mask_high_risk=options.get("mask_high_risk", True),
-        allow_low_risk=options.get("allow_low_risk", True),
-        alert_on_brute_force=options.get("alert_on_brute_force", True),
-    )
-    reasons: List[str] = []
-    alerts: List[str] = []
-
-    risks = {f.get("risk") for f in findings}
-    if "critical" in risks and cfg.block_on_critical:
-        reasons.append("critical finding present")
-        action = "blocked"
-        if anomalies and cfg.alert_on_brute_force:
-            alerts.extend(anomalies)
-        return PolicyDecision(action=action, reasons=reasons, alerts=alerts)
-
-    if ("high" in risks or "medium" in risks) and cfg.mask_high_risk:
-        reasons.append("high/medium findings masked")
-        action = "masked"
-    elif not findings:
-        reasons.append("no findings")
-        action = "allowed"
-    else:
-        action = "allowed"
-
-    if anomalies and cfg.alert_on_brute_force:
-        alerts.extend(anomalies)
-
-    return PolicyDecision(action=action, reasons=reasons, alerts=alerts)
-from dataclasses import dataclass
-from typing import List, Dict
-
-
-@dataclass
-class PolicyConfig:
-    block_on_critical: bool = True
-    mask_high_risk: bool = True
-    allow_low_risk: bool = True
-    alert_on_brute_force: bool = True
-
-
-@dataclass
-class PolicyDecision:
-    action: str
-    reasons: List[str]
-    alerts: List[str]
-
-
-def evaluate(findings: List[Dict], anomalies: List[str], options: Dict) -> PolicyDecision:
-    """Evaluate findings and anomalies against policy configuration.
-
-    `options` overrides defaults. Returns a PolicyDecision.
+def determine_action(risk_level: str, options: Dict) -> str:
     """
-    cfg = PolicyConfig(
-        block_on_critical=options.get("block_on_critical", True),
-        mask_high_risk=options.get("mask_high_risk", options.get("mask_output", True)),
-        allow_low_risk=options.get("allow_low_risk", True),
-        alert_on_brute_force=options.get("alert_on_brute_force", True),
-    )
+    Determine policy action based on risk level and options.
+    Returns: 'blocked' | 'masked' | 'allowed'
+    """
+    block_high_risk = options.get("block_high_risk", True)
+    mask = options.get("mask", True)
 
-    reasons: List[str] = []
-    alerts: List[str] = []
+    if block_high_risk and risk_level in BLOCK_LEVELS:
+        return "blocked"
+    elif mask:
+        return "masked"
+    return "allowed"
 
-    has_critical = any(f.get("risk") == "critical" for f in findings)
-    has_high_medium = any(f.get("risk") in ("high", "medium") for f in findings)
 
-    if has_critical and cfg.block_on_critical:
-        reasons.append("critical findings present and block_on_critical")
-        action = "blocked"
-    elif has_high_medium and cfg.mask_high_risk:
-        reasons.append("masking high/medium risk findings")
-        action = "masked"
-    elif not findings:
-        reasons.append("no findings")
-        action = "allowed"
-    else:
-        action = "allowed"
-
-    if anomalies and cfg.alert_on_brute_force:
-        alerts.extend(anomalies)
-
-    return PolicyDecision(action=action, reasons=reasons, alerts=alerts)
+def apply_masking(findings: List[Dict], mask: bool) -> List[Dict]:
+    """
+    Apply masking to all findings values.
+    Returns findings with 'value' field populated.
+    """
+    result = []
+    for f in findings:
+        finding = f.copy()
+        raw_value = f.get("match", "")
+        if mask:
+            finding["value"] = mask_finding_value(
+                raw_value, f.get("type", "")
+            )
+        else:
+            finding["value"] = raw_value
+        # Remove raw match from response for security
+        finding.pop("match", None)
+        finding.pop("start", None)
+        finding.pop("end", None)
+        result.append(finding)
+    return result

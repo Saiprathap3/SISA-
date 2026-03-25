@@ -1,0 +1,11 @@
+{
+  "A1": "PASS",
+  "A3": "PASS",
+  "A2": "PASS",
+  "A4": "PASS",
+  "B1_findings": "PASS",
+  "B1_score": "PASS",
+  "B4_line": "PASS",
+  "D1": "FAIL (Score 75, expected 7)",
+  "E1": "FAIL (Action masked)"
+}

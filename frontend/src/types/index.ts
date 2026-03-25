@@ -35,8 +35,8 @@ export interface AnalyzeResponse {
 }
 
 export interface AnalyzeOptions {
-  mask_output: boolean;
-  use_ai: boolean;
-  block_on_critical: boolean;
+  mask: boolean;
+  log_analysis: boolean;
+  block_high_risk: boolean;
 }
 

@@ -1,15 +1,43 @@
 import React from 'react'
 
 export default function RiskBreakdown({ counts }: { counts: Record<string, number> }) {
-  const total = Object.values(counts).reduce((a, b) => a + (b || 0), 0) || 1
-  const colors: Record<string, string> = { critical: '#b91c1c', high: '#f97316', medium: '#f59e0b', low: '#16a34a' }
+  // counts comes from API response detection_breakdown: { regex, statistical, ml, ai }
+  const breakdown = counts ?? { regex: 0, statistical: 0, ml: 0, ai: 0 };
+  const total = Math.max(
+    (breakdown.regex ?? 0) + (breakdown.statistical ?? 0) + 
+    (breakdown.ml ?? 0) + (breakdown.ai ?? 0), 
+    1
+  );
+
+  const methods = [
+    { key: 'regex', label: 'Regex', color: '#3b82f6' },
+    { key: 'statistical', label: 'Statistical', color: '#8b5cf6' },
+    { key: 'ml', label: 'ML', color: '#ec4899' },
+    { key: 'ai', label: 'AI', color: '#14b8a6' }
+  ];
+
   return (
-    <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', height: 60 }}>
-      {(['critical', 'high', 'medium', 'low'] as string[]).map(k => (
-        <div key={k} style={{ width: 40, background: '#071018', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-          <div style={{ width: '80%', height: `${(counts[k] || 0) / total * 100}%`, background: colors[k], transition: 'height 300ms' }} />
-        </div>
-      ))}
+    <div className="risk-breakdown-container">
+      {methods.map(method => {
+        const count = breakdown[method.key as keyof typeof breakdown] ?? 0;
+        const percentage = total > 0 ? (count / total) * 100 : 0;
+        return (
+          <div key={method.key} className="breakdown-bar-wrapper" style={{ flex: 1 }}>
+            <div 
+              className="breakdown-bar"
+              style={{
+                height: `${Math.max(percentage, 5)}%`,
+                backgroundColor: method.color,
+                minHeight: '20px',
+                borderRadius: '4px'
+              }}
+              title={method.label}
+            />
+            <div className="breakdown-label">{method.label}</div>
+            <div className="breakdown-count">{count}</div>
+          </div>
+        );
+      })}
     </div>
-  )
+  );
 }

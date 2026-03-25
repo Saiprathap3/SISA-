@@ -1,152 +1,164 @@
-import time
-import uuid
-from typing import Dict, Any, List
-from fastapi import APIRouter, HTTPException, UploadFile, File, Form, Request
+from fastapi import APIRouter, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any
+from datetime import datetime, timezone
+import os
 
-from app.core.config import settings
-from app.models.request_models import AnalyzeRequest
-from app.modules.parser import log_parser, text_parser, sql_parser, chat_parser, file_parser
-from app.modules.detection import regex_engine, statistical_analyzer, ml_analyzer
-from app.modules.ai.claude_gateway import ClaudeGateway
-from app.modules.risk import risk_engine
-from app.modules.reporting import report_generator
-from app.utils.logger import logger
+from app.modules.detection.regex_engine import detect_all, get_all_patterns
+from app.modules.detection.statistical_detector import detect_statistical_anomalies
+from app.modules.detection.ml_detector import detect_ml_anomalies
+from app.modules.detection.log_analyzer import analyze_log
+from app.modules.risk.risk_engine import (
+    calculate_risk_score, get_risk_level, get_risk_summary
+)
+from app.modules.policy.policy_engine import determine_action, apply_masking
+from app.modules.ai.claude_gateway import get_ai_insights
 
 router = APIRouter()
+security = HTTPBearer(auto_error=False)
+
+
+def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    """Optional bearer token auth — skip if no token configured"""
+    configured = os.getenv("API_BEARER_TOKEN", "")
+    if configured and configured != "changeme":
+        if (not credentials or 
+                credentials.credentials != configured):
+            raise HTTPException(
+                status_code=401, 
+                detail="Invalid or missing bearer token"
+            )
+
+
+class AnalyzeOptions(BaseModel):
+    mask: bool = True
+    block_high_risk: bool = True
+    log_analysis: bool = True
+    use_ai: bool = True
+
+
+class AnalyzeRequest(BaseModel):
+    input_type: str = Field(
+        ..., 
+        pattern="^(text|file|sql|chat|log)$",
+        description="One of: text, file, sql, chat, log"
+    )
+    content: str = Field(..., min_length=1, max_length=500000)
+    options: AnalyzeOptions = AnalyzeOptions()
+
 
 @router.post("/analyze")
-async def analyze_route(req: AnalyzeRequest, request: Request):
-    """Refactored analyze route with multiple detection layers and hardening."""
-    request_id = getattr(request.state, "request_id", str(uuid.uuid4()))
-    start = time.time()
+async def analyze(
+    request: AnalyzeRequest,
+    _token = Depends(verify_token)
+):
+    """
+    Main analysis endpoint.
+    Runs: Regex → Statistical → ML → AI → Risk → Policy
+    Matches official project spec API contract exactly.
+    """
+    content = request.content.strip()
+    input_type = request.input_type
+    options = request.options.dict()
+
+    # ── Step 1: Detection ──────────────────────────────────────
     
-    # Section 5: Internal Logging
-    logger.info("analyze request", extra={"request_id": request_id, "input_type": input_type, "content_len": len(content)})
-    
-    # Section 5: Generic error responses with IDs
-    try:
-        input_type = req.input_type
-        content = req.content or ""
-        options = req.options.model_dump() if hasattr(req.options, "model_dump") else (req.options or {})
-        
-        # Section 5: Input Validation
-        if len(content) > settings.MAX_TEXT_CHARS:
-             raise HTTPException(status_code=400, detail=f"Input exceeds maximum allowed length of {settings.MAX_TEXT_CHARS} chars.")
+    if input_type == "log" and options.get("log_analysis", True):
+        # Log-specific pipeline (spec section 3.3)
+        log_result = analyze_log(content)
+        regex_findings = [
+            f for f in log_result["findings"] 
+            if f.get("detection_method") == "regex"
+        ]
+        statistical_findings = [
+            f for f in log_result["findings"] 
+            if f.get("detection_method") == "statistical"
+        ]
+        total_lines = log_result["total_lines"]
+    else:
+        # Universal pipeline for text/file/sql/chat
+        regex_findings = detect_all(content)
+        statistical_findings = detect_statistical_anomalies(
+            content, input_type
+        )
+        total_lines = len([l for l in content.split('\n') if l.strip()])
 
-        # Handle logs vs non-logs
-        all_findings = []
-        anomalies = []
-        ai_insights = []
-        
-        if input_type == "log":
-            parsed_lines = log_parser.parse_log(content)
-            
-            # Layer 1: Regex
-            regex_findings = regex_engine.detect_in_lines([l["content"] for l in parsed_lines])
-            all_findings.extend(regex_findings)
-            
-            # Layer 2: Statistical
-            stats_anomalies = statistical_analyzer.detect_brute_force(parsed_lines)
-            stats_findings = statistical_analyzer.detect_privilege_escalation(parsed_lines)
-            all_findings.extend(stats_findings)
-            anomalies.extend([s["type"] for s in stats_anomalies])
-            
-            # Layer 3: ML Anomaly detection
-            if settings.ENABLE_ML:
-                ml_anomalies = ml_analyzer.detect_ml_anomlies(parsed_lines)
-                anomalies.extend([m["type"] for m in ml_anomalies])
-            else:
-                ml_anomalies = []
-                
-            # Layer 4: AI Analysis (Upgraded)
-            ai_findings = []
-            if options.get("use_ai"):
-                # Only call if we have findings or anomalies
-                if all_findings or anomalies:
-                    gw = ClaudeGateway()
-                    ai_result = await gw.analyze_suspicious_lines(parsed_lines)
-                    ai_findings = ai_result.get("findings", [])
-                    ai_insights = [ai_result.get("summary", "")] if ai_result.get("summary") else []
-                    
-                    # Merge AI findings into all_findings
-                    for aif in ai_findings:
-                        all_findings.append({
-                            "line": aif.get("line"),
-                            "type": aif.get("attack_type"),
-                            "risk": aif.get("severity"),
-                            "recommendation": aif.get("action"),
-                            "detection_method": "ai",
-                            "value": aif.get("asset")
-                        })
+    # ML detection runs on all input types
+    all_so_far = regex_findings + statistical_findings
+    ml_findings = detect_ml_anomalies(content, all_so_far)
 
-            # Section 3: Risk Scoring & Policy
-            score, level = risk_engine.calculate_risk_score(all_findings, ml_anomalies, ai_findings)
-            action = risk_engine.enforce_policy(level, all_findings, options)
-            
-            # Form final response data
-            results = {
-                "summary": "Log analysis complete",
-                "content_type": "log",
-                "total_lines": len(parsed_lines),
-                "findings": all_findings,
-                "risk_score": score,
-                "risk_level": level,
-                "action": action,
-                "insights": ai_insights,
-                "detection_breakdown": {
-                    "regex_findings": len(regex_findings),
-                    "statistical_findings": len(stats_findings) + len(stats_anomalies),
-                    "ml_findings": len(ml_anomalies),
-                    "ai_findings": len(ai_findings)
-                }
-            }
-            return report_generator.generate_json_report(results)
+    all_findings = all_so_far + ml_findings
 
-        else:
-            # Simple text/sql analysis (brief implementation as per contract)
-            findings = regex_engine.detect_all(content)
-            score, level = risk_engine.calculate_risk_score(findings, [], [])
-            action = risk_engine.enforce_policy(level, findings, options)
-            
-            results = {
-                "summary": "Text analysis complete",
-                "content_type": input_type,
-                "total_lines": len(content.splitlines()),
-                "findings": findings,
-                "risk_score": score,
-                "risk_level": level,
-                "action": action,
-                "insights": [],
-                "detection_breakdown": { "regex_findings": len(findings), "statistical_findings": 0, "ml_findings": 0, "ai_findings": 0 }
-            }
-            return report_generator.generate_json_report(results)
-            
-    except HTTPException:
-        raise
-    except Exception as e:
-        error_id = str(uuid.uuid4())
-        logger.exception(f"Analysis failed [{error_id}]", extra={"error_id": error_id})
-        raise HTTPException(status_code=500, detail={"detail": "Analysis engine error", "error_id": error_id})
+    # ── Step 2: Risk Engine ────────────────────────────────────
+    risk_score = calculate_risk_score(all_findings)
+    risk_level = get_risk_level(risk_score)
+    summary = get_risk_summary(all_findings, input_type)
 
-@router.post("/analyze/file")
-async def analyze_file(file: UploadFile = File(...), options: str = Form(...), request: Request = None):
-    """File upload route with validation."""
-    import json
-    
-    # Section 5: Enforce MAX_FILE_SIZE_MB
-    content = await file.read()
-    if len(content) > settings.MAX_FILE_SIZE_MB * 1024 * 1024:
-        raise HTTPException(status_code=413, detail=f"File exceeds limit of {settings.MAX_FILE_SIZE_MB}MB")
+    # ── Step 3: AI Insights (Claude only) ─────────────────────
+    ai_insights = []
+    ai_findings_count = 0
+    if options.get("use_ai", True) and all_findings:
+        ai_insights = await get_ai_insights(
+            findings=all_findings,
+            content_type=input_type,
+            raw_content=content[:2000]  # limit context
+        )
+        # Count as AI findings only if real Claude response
+        is_fallback = (
+            not ai_insights or 
+            any(phrase in ai_insights[0].lower() 
+                for phrase in ["unavailable", "appears secure", "review all"])
+        )
+        ai_findings_count = len(ai_insights) if not is_fallback else 0
+    elif not all_findings:
+        ai_insights = ["No sensitive data detected. Content appears secure."]
 
-    # Mime validation
-    allowed_mimes = ["text/plain", "application/pdf", "application/msword", "application/json", "text/csv"]
-    if file.content_type not in allowed_mimes and not file.filename.endswith(('.txt', '.log', '.csv', '.json', '.sql')):
-        raise HTTPException(status_code=415, detail="Unsupported file format")
+    # ── Step 4: Policy Engine ──────────────────────────────────
+    action = determine_action(risk_level, options)
+    masked_findings = apply_masking(all_findings, options.get("mask", True))
 
-    try:
-        opts = json.loads(options)
-    except Exception:
-        opts = {}
+    # ── Step 5: Build Response (exact spec format) ─────────────
+    return {
+        "summary": summary,
+        "content_type": input_type,
+        "total_lines_analyzed": total_lines,
+        "findings": masked_findings,
+        "risk_score": risk_score,
+        "risk_level": risk_level,
+        "action": action,
+        "insights": ai_insights,
+        "detection_breakdown": {
+            "regex": len(regex_findings),
+            "statistical": len(statistical_findings),
+            "ml": len(ml_findings),
+            "ai": ai_findings_count
+        },
+        "generated_at": datetime.now(timezone.utc).isoformat()
+    }
+
+
+@router.get("/health")
+async def health():
+    """Health check endpoint"""
+    return {
+        "status": "ok",
+        "model": "claude-sonnet-4-6",
+        "version": os.getenv("APP_VERSION", "1.0.0"),
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+
+@router.get("/patterns")
+async def patterns():
+    """Return all detection patterns and their risk levels"""
+    return {
+        "patterns": get_all_patterns(),
+        "total": len(get_all_patterns())
+    }
+
         
     parsed = await file_parser.parse_file(file.filename, content)
     text = parsed.get("content", "")
