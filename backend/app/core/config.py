@@ -24,25 +24,26 @@ settings = Settings()
 
 def get_cors_origins() -> list:
     """
-    Returns CORS origins based on environment.
-    In production: uses FRONTEND_URL env variable.
-    In development: uses localhost.
+    Returns explicit CORS origins.
+    Always allows localhost for local development and optionally
+    adds a configured production frontend URL.
     """
-    env = os.getenv("ENVIRONMENT", "development")
-
-    if env == "production":
-        frontend_url = os.getenv("FRONTEND_URL", "")
-        origins = [
-            frontend_url,
-            "https://*.vercel.app",  # Vercel preview deployments
-        ]
-        return [o for o in origins if o]  # remove empty strings
-
-    return [
+    origins = [
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ]
+    frontend_url = os.getenv("FRONTEND_URL", "").strip()
+    if frontend_url:
+        origins.append(frontend_url)
+    return origins
+
+
+def get_cors_origin_regex() -> str:
+    """
+    Allow Vercel preview and production subdomains.
+    """
+    return r"https://.*\.vercel\.app"
 
 
 if not settings.anthropic_api_key:

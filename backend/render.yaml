@@ -10,6 +10,10 @@ services:
     envVars:
       - key: ANTHROPIC_API_KEY
         sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: ENVIRONMENT
+        value: production
       - key: APP_VERSION
         value: 1.0.0
       - key: PYTHON_VERSION
