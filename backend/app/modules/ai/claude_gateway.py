@@ -103,6 +103,11 @@ async def get_ai_insights(
             findings_count=len(findings),
             content_type=content_type,
         )
+            source="ai_gateway",
+            model="claude-sonnet-4-6",
+            findings_count=len(findings),
+            content_type=content_type,
+        )
 
         findings_summary = json.dumps(
             [
@@ -146,17 +151,33 @@ Rules:
 - Return ONLY the JSON, no markdown, no extra text"""
 
         loop = asyncio.get_event_loop()
-        message = await asyncio.wait_for(
-            loop.run_in_executor(
-                None,
-                lambda: client.messages.create(
-                    model="claude-sonnet-4-6",
-                    max_tokens=600,
-                    messages=[{"role": "user", "content": prompt}],
+        try:
+            message = await asyncio.wait_for(
+                loop.run_in_executor(
+                    None,
+                    lambda: client.messages.create(
+                        model="claude-sonnet-4-6",
+                        max_tokens=600,
+                        messages=[{"role": "user", "content": prompt}],
+                    ),
                 ),
-            ),
-            timeout=25.0,
-        )
+                timeout=25.0,
+            )
+        except anthropic.BadRequestError as e:
+            if "credit balance is too low" in str(e).lower():
+                log_event(
+                    "ERROR",
+                    "Anthropic API credits exhausted",
+                    source="ai_gateway",
+                    error_type="INSUFFICIENT_CREDITS"
+                )
+                return {
+                    "error": True,
+                    "type": "INSUFFICIENT_CREDITS",
+                    "message": "AI service temporarily unavailable. API credits exhausted.",
+                    "fallback": "Please contact administrator to top up API credits."
+                }
+            raise e
 
         raw_response = message.content[0].text.strip()
         log_event(
@@ -194,12 +215,36 @@ Rules:
 
     except asyncio.TimeoutError:
         log_event("ERROR", "AI model call timed out after 25s", source="ai_gateway")
+        return {
+            "error": True,
+            "type": "AI_TIMEOUT",
+            "message": "AI analysis timed out",
+            "fallback": "Using rule-based analysis"
+        }
     except anthropic.AuthenticationError:
         log_event("ERROR", "AI authentication failed", source="ai_gateway")
+        return {
+            "error": True,
+            "type": "AUTH_ERROR",
+            "message": "AI authentication failed",
+            "fallback": "Using rule-based analysis"
+        }
     except anthropic.RateLimitError:
         log_event("WARN", "AI rate limit encountered", source="ai_gateway")
+        return {
+            "error": True,
+            "type": "RATE_LIMIT",
+            "message": "AI rate limit exceeded",
+            "fallback": "Using rule-based analysis"
+        }
     except anthropic.APIConnectionError:
         log_event("ERROR", "AI connection error while reaching Anthropic", source="ai_gateway")
+        return {
+            "error": True,
+            "type": "CONNECTION_ERROR",
+            "message": "Could not connect to AI service",
+            "fallback": "Using rule-based analysis"
+        }
     except Exception as exc:
         log_event(
             "ERROR",
@@ -207,6 +252,11 @@ Rules:
             source="ai_gateway",
             error=str(exc),
         )
-        traceback.print_exc()
+        return {
+            "error": True,
+            "type": "AI_ERROR",
+            "message": str(exc),
+            "fallback": "Using rule-based analysis"
+        }
 
     return generate_fallback_insights(findings)

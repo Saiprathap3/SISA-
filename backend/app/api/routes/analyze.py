@@ -207,11 +207,29 @@ async def analyze(
             content_type=input_type,
             raw_content=content[:2000],
         )
-        is_fallback = not ai_insights or any(
-            phrase in ai_insights[0].lower()
-            for phrase in ["unavailable", "appears secure", "review all"]
-        )
-        ai_findings_count = len(ai_insights) if not is_fallback else 0
+        
+        # Check if AI returned an error
+        if isinstance(ai_insights, dict) and ai_insights.get("error") is True:
+            if ai_insights.get("type") == "INSUFFICIENT_CREDITS":
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "error": "AI_SERVICE_UNAVAILABLE",
+                        "message": "AI service temporarily unavailable. API credits exhausted.",
+                        "action": "Please contact administrator to top up API credits.",
+                        "service": "Anthropic Claude"
+                    }
+                )
+            else:
+                log_event("WARN", f"AI error encountered: {ai_insights.get('type')}", route="/analyze")
+                # Use fallback insights from the error response
+                ai_insights = []
+        else:
+            is_fallback = not ai_insights or any(
+                phrase in ai_insights[0].lower()
+                for phrase in ["unavailable", "appears secure", "review all"]
+            )
+            ai_findings_count = len(ai_insights) if not is_fallback else 0
     elif not all_findings:
         ai_insights = ["No sensitive data detected. Content appears secure."]
 
