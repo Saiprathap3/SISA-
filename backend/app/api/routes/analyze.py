@@ -232,11 +232,12 @@ async def analyze(
 
 @router.get("/health")
 async def health():
-    """Health check endpoint."""
+    import time
     return {
         "status": "ok",
-        "model": "claude-sonnet-4-6",
         "version": os.getenv("APP_VERSION", "1.0.0"),
+        "model": "claude-sonnet-4-6",
+        "environment": os.getenv("ENVIRONMENT", "development"),
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

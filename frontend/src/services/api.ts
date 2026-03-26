@@ -1,12 +1,12 @@
 import type { AnalyzeResponse, AnalyzeOptions } from "../types/index"
 
-const BASE_URL = (import.meta as any).env?.VITE_API_URL || "http://localhost:8000"
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, init: RequestInit = {}, timeout = 30000): Promise<T> {
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort(), timeout)
   try {
-    const res = await fetch(`${BASE_URL}${path}`, { ...init, signal: controller.signal })
+    const res = await fetch(`${API_BASE_URL}${path}`, { ...init, signal: controller.signal })
     clearTimeout(id)
     if (!res.ok) {
       const text = await res.text()
@@ -36,4 +36,3 @@ export async function analyzeFile(file: File, options: AnalyzeOptions): Promise<
 export async function checkHealth(): Promise<{ status: string; version: string }> {
   return request('/health')
 }
-
