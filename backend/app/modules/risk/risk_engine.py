@@ -1,29 +1,26 @@
 from typing import List, Dict
 
-RISK_WEIGHTS = {
-    "critical": 5,
+FINDING_WEIGHTS = {
+    "critical": 4,
     "high": 3,
     "medium": 2,
     "low": 1
 }
 
 RISK_THRESHOLDS = {
-    "critical": 20,
-    "high": 10,
-    "medium": 5,
+    "critical": 11,
+    "high": 7,
+    "medium": 4,
     "low": 0
 }
 
 
-def calculate_risk_score(findings: List[Dict]) -> int:
-    """Calculate weighted risk score from all findings"""
-    if not findings:
-        return 0
-    score = sum(
-        RISK_WEIGHTS.get(f.get("risk", "low"), 1) 
-        for f in findings
-    )
-    return min(score, 100)   # cap at 100
+def calculate_risk_score(findings: list) -> int:
+    score = 0
+    for finding in findings:
+        risk = finding.get("risk", "low").lower()
+        score += FINDING_WEIGHTS.get(risk, 1)
+    return min(score, 15)
 
 
 def get_risk_level(score: int) -> str:

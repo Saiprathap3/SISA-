@@ -95,10 +95,8 @@ def detect_ml_anomalies(text: str, existing_findings: List[Dict]) -> List[Dict]:
     )
 
     if (
-        (
-            features["credential_keyword_density"] > 0.5
-            or features["line_count"] <= 2
-        )
+        features["credential_keyword_density"] > 0.5
+        and features["line_count"] <= 2
         and features["entropy"] > 4.2
     ):
         credential_risk = "high" if features["line_count"] <= 2 else "low"

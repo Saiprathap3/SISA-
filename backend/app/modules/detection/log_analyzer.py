@@ -46,7 +46,7 @@ def detect_brute_force(lines: List[str]) -> List[Dict]:
                 findings.append(
                     {
                         "type": "brute_force",
-                        "risk": "high",
+                        "risk": "critical",
                         "category": "statistical",
                         "line": first_line,
                         "match": (
@@ -65,7 +65,7 @@ def detect_brute_force(lines: List[str]) -> List[Dict]:
         findings.append(
             {
                 "type": "brute_force",
-                "risk": "high",
+                "risk": "critical",
                 "category": "statistical",
                 "line": first_line,
                 "match": f"Brute force: {failed_count} consecutive failed logins",
@@ -260,10 +260,11 @@ def detect_suspicious_ip(lines: List[str]) -> List[Dict]:
                 }
             )
         elif failed_count >= 3:
+            suspicious_risk = "critical" if failed_count >= 5 else "high"
             findings.append(
                 {
                     "type": "suspicious_ip",
-                    "risk": "high",
+                    "risk": suspicious_risk,
                     "category": "network",
                     "match": ip_str,
                     "line": first_line,

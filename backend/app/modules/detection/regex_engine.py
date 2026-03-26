@@ -115,42 +115,29 @@ PATTERNS = {
 }
 
 
-def detect_all(text: str) -> List[Dict]:
-    """
-    Run all regex patterns against text line by line.
-    Always returns line numbers. Works for ALL input types.
-    """
+def detect_all(text: str) -> list:
+    import re
     findings = []
-    lines = text.split("\n")
-
-    for line_num, line in enumerate(lines, start=1):
-        if not line.strip():
+    for pattern_name, pattern_data in PATTERNS.items():
+        try:
+            matches = re.finditer(
+                pattern_data["regex"],
+                text,
+                re.IGNORECASE
+            )
+            for match in matches:
+                findings.append({
+                    "type": pattern_name,
+                    "risk": pattern_data["risk"],
+                    "match": match.group(),
+                    "start": match.start(),
+                    "end": match.end(),
+                    "category": pattern_data.get("category", "unknown"),
+                    "detection_method": "regex"
+                })
+        except re.error as e:
+            print(f"Regex error in pattern {pattern_name}: {e}")
             continue
-        seen_pattern_types = set()
-        for pattern_name, pattern_data in PATTERNS.items():
-            try:
-                matches = re.finditer(
-                    pattern_data["regex"], line, re.IGNORECASE
-                )
-                for match in matches:
-                    if pattern_name in seen_pattern_types:
-                        break
-                    seen_pattern_types.add(pattern_name)
-                    findings.append(
-                        {
-                            "type": pattern_name,
-                            "risk": pattern_data["risk"],
-                            "category": pattern_data["category"],
-                            "match": match.group(),
-                            "line": line_num,
-                            "start": match.start(),
-                            "end": match.end(),
-                            "detection_method": "regex",
-                        }
-                    )
-            except re.error:
-                continue
-
     return findings
 
 

@@ -39,18 +39,28 @@ def mask_finding_value(value: str, finding_type: str) -> str:
     return SIMPLE_MASK
 
 
-def determine_action(risk_level: str, options: Dict) -> str:
+def determine_action(risk_level: str, options: dict) -> str:
     """
-    Determine policy action based on risk level and options.
-    Returns: 'blocked' | 'masked' | 'allowed'
+    Policy decision per spec §5:
+      BLOCKED → critical OR high risk + block_high_risk=True
+      MASKED  → medium risk + mask=True
+      ALLOWED → low risk
     """
-    block_high_risk = options.get("block_high_risk", True)
-    mask = options.get("mask", True)
+    block = options.get("block_high_risk", False)
+    mask = options.get("mask", False)
 
-    if block_high_risk and risk_level == "critical":
+    # BLOCK critical always when flag is on
+    if risk_level == "critical" and block:
         return "blocked"
-    elif mask:
+
+    # BLOCK high risk when flag is on
+    if risk_level == "high" and block:
+        return "blocked"
+
+    # MASK medium or lower when mask flag is on
+    if risk_level in ("critical", "high", "medium") and mask:
         return "masked"
+
     return "allowed"
 
 
