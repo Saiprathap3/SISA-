@@ -53,7 +53,8 @@ export default function SummaryBar({
       <div className="stat-box text-right">
         <div className="f-13 fw-700">{findingsCount} findings</div>
         <div className="muted f-10">
-          {duration ? `${Math.round(duration)}ms` : ''} 
+          {new Date().toLocaleTimeString()}
+          {duration ? ` • ${Math.round(duration)}ms` : ''} 
           {totalLines ? ` • ${totalLines} lines` : ''}
         </div>
         <div className="muted f-10">{requestId?.slice(0, 8)}</div>

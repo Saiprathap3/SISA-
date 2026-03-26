@@ -95,6 +95,7 @@ export default function App() {
       <Header 
         onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
         onLogsToggle={() => setShowLiveLogsViewer(!showLiveLogsViewer)}
+        action={result?.action}
       />
       
       {/* Mobile Navigation Overlay */}

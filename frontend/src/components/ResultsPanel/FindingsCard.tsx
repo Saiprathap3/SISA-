@@ -73,63 +73,75 @@ export default function FindingsCard({
           <div
             key={index}
             className={`finding-card ${findingClassName(finding.type, finding.risk)}`}
+            style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}
           >
-            <div className="finding-card-header">
-              <div>
-                <span className="finding-type">
-                  {finding.type.replace(/_/g, ' ').toUpperCase()}
-                </span>
-                {methodBadge(finding.detection_method || 'regex')}
-              </div>
-              <div className="muted finding-line">
-                {finding.line ? `Line ${finding.line}` : 'Line -'}
-              </div>
+            <div style={{ flexShrink: 0, marginTop: '2px', fontSize: '18px' }}>
+              {finding.type.includes('email') ? '📧' : finding.type.includes('key') || finding.type.includes('password') || finding.type.includes('secret') || finding.type.includes('token') ? '🔑' : finding.risk === 'CRITICAL' ? '🚨' : '⚠️'}
             </div>
-
-            <div className="finding-value">
-              {finding.masked_value || finding.value || finding.original_line || 'No details'}
-            </div>
-
-            {finding.detail && (
-              <div className="finding-detail">{finding.detail}</div>
-            )}
-
-            {finding.context && (
-              <div className="finding-context">
-                {finding.context.ip_type && (
-                  <span>
-                    Type: <strong>{finding.context.ip_type}</strong>
+            
+            <div style={{ flexGrow: 1, minWidth: 0 }}>
+              <div className="finding-card-header" style={{ marginBottom: '8px' }}>
+                <div>
+                  <span className="finding-type">
+                    {finding.type.replace(/_/g, ' ').toUpperCase()}
                   </span>
-                )}
-                {typeof finding.context.appearances === 'number' && (
-                  <span>
-                    Seen: <strong>{finding.context.appearances}x</strong>
+                  {methodBadge(finding.detection_method || 'regex')}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className={`badge ${(finding.risk || 'low').toLowerCase()}`} style={{ fontSize: '10px' }}>
+                    {(finding.risk || 'LOW').toUpperCase()}
                   </span>
-                )}
-                {typeof finding.context.failed_login_count === 'number' && (
-                  <span className="finding-context-critical">
-                    Failed logins: <strong>{finding.context.failed_login_count}</strong>
-                  </span>
-                )}
-                {typeof finding.context.failed_logins === 'number' &&
-                  typeof finding.context.failed_login_count !== 'number' && (
-                    <span className="finding-context-critical">
-                      Failed logins: <strong>{finding.context.failed_logins}</strong>
+                  <div className="muted finding-line">
+                    {finding.line ? `Line ${finding.line}` : 'Line -'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="finding-value">
+                {finding.masked_value || finding.value || finding.original_line || 'No details'}
+              </div>
+
+              {finding.detail && (
+                <div className="finding-detail">{finding.detail}</div>
+              )}
+
+              {finding.context && (
+                <div className="finding-context">
+                  {finding.context.ip_type && (
+                    <span>
+                      Type: <strong>{finding.context.ip_type}</strong>
                     </span>
                   )}
-                {typeof finding.context.error_count === 'number' && (
-                  <span>
-                    Errors: <strong>{finding.context.error_count}</strong>
-                  </span>
-                )}
-              </div>
-            )}
+                  {typeof finding.context.appearances === 'number' && (
+                    <span>
+                      Seen: <strong>{finding.context.appearances}x</strong>
+                    </span>
+                  )}
+                  {typeof finding.context.failed_login_count === 'number' && (
+                    <span className="finding-context-critical">
+                      Failed logins: <strong>{finding.context.failed_login_count}</strong>
+                    </span>
+                  )}
+                  {typeof finding.context.failed_logins === 'number' &&
+                    typeof finding.context.failed_login_count !== 'number' && (
+                      <span className="finding-context-critical">
+                        Failed logins: <strong>{finding.context.failed_logins}</strong>
+                      </span>
+                    )}
+                  {typeof finding.context.error_count === 'number' && (
+                    <span>
+                      Errors: <strong>{finding.context.error_count}</strong>
+                    </span>
+                  )}
+                </div>
+              )}
 
-            {finding.recommendation && (
-              <div className="finding-rec">
-                {finding.recommendation}
-              </div>
-            )}
+              {finding.recommendation && (
+                <div className="finding-rec">
+                  {finding.recommendation}
+                </div>
+              )}
+            </div>
           </div>
         ))}
       </div>
