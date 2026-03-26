@@ -19,6 +19,8 @@ export default function App() {
   const [options, setOptions] = useState({ mask: true, log_analysis: true, block_high_risk: true })
   const { result, loading, error, analyze, analyzeFile } = useAnalyze()
   const [originalContent, setOriginalContent] = useState('')
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [showLiveLogsViewer, setShowLiveLogsViewer] = useState(false)
 
   async function handleFile(f: File | null) {
     if (!f) return
@@ -40,6 +42,11 @@ export default function App() {
   async function handleAnalysis(text: string, type: InputType) {
     setOriginalContent(text)
     await analyze(text, type, options)
+  }
+
+  const handleTypeChange = (type: InputType) => {
+    setSelectedType(type)
+    setMobileMenuOpen(false) // Close mobile menu after selection
   }
 
   const exportJSON = () => {
@@ -85,9 +92,59 @@ export default function App() {
   return (
     <div className="app-root">
       {loading && <div className="top-progress w-full" />}
-      <Header />
+      <Header 
+        onMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
+        onLogsToggle={() => setShowLiveLogsViewer(!showLiveLogsViewer)}
+      />
+      
+      {/* Mobile Navigation Overlay */}
+      <nav className={`mobile-nav ${mobileMenuOpen ? 'open' : ''}`}>
+        <button 
+          className="mobile-nav-close-btn"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-label="Close navigation menu"
+        >
+          ✕
+        </button>
+        <div className="mobile-nav-content">
+          <Sidebar 
+            selectedType={selectedType} 
+            onTypeChange={handleTypeChange} 
+            options={options} 
+            onOptionsChange={setOptions} 
+          />
+        </div>
+      </nav>
+
+      {/* Live Logs Viewer Modal Overlay */}
+      {showLiveLogsViewer && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.7)',
+          zIndex: 998,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px',
+        }}>
+          <LogViewer 
+            isLive={true}
+            onClose={() => setShowLiveLogsViewer(false)}
+          />
+        </div>
+      )}
+
       <div className="flex">
-        <Sidebar selectedType={selectedType} onTypeChange={setSelectedType} options={options} onOptionsChange={setOptions} />
+        <Sidebar 
+          selectedType={selectedType} 
+          onTypeChange={setSelectedType} 
+          options={options} 
+          onOptionsChange={setOptions} 
+        />
         <main className="flex-1 p-20">
           <div className="grid-main">
             <section>
